@@ -1,133 +1,142 @@
-#python3
+#!/usr/bin/env python3
 
-#AUTHOR: Vansh Jain
-#HANDLE: VanshJain-me
+# TickerCompilation.py
 
-#TickerCompilation.py
-#Comfiles the tickers from various files.
+# AUTHOR: Vansh Jain
+# HANDLE: VanshJain-me
+# Compiles the company names and thier tickers from ADVFN
+
+####
+# Add random time to prevent DOS
+# ADD logging and other software development htings
 
 import pandas as pd
-import os
 
-class TickerCompiler:
-	"""
-	This class will take in data from the unstructured
-	ticker files and compiles them into tickers.csv
-	"""
+import requests
+from bs4 import BeautifulSoup
 
-	
-	def __init__(self, file, drop_columns, 
-		column_name_change):
-		"""
-		Defines class' variables
-		"""
-
-		self.file = file
-		self.drop_columns = drop_columns
-		self.column_name_change = column_name_change
-		self.data_destination = "tickers.csv"
+import string
 
 
-	def data_ingestion(self):
-		"""
-		Takes in data from unstructred files formats and
-		inputs the data in a structured manner. 
-		"""
-
-		data = pd.read_csv(self.file)
-		return(data)
-
-	
-	def meaningless_column_removal(self, data):
-		"""
-		Removes meaninless data columns 
-		"""
-
-		for column in self.drop_columns:
-			if column in data.columns:
-				del data[column]
-
-		return(data)
+"""
+Scrape the data from ADVEN, structure, format and clean
+the data
+"""
 
 
-	def column_rename(self, data):
-		"""
-		Renames the columns for uniform formatting and 
-		aesthetic purposes
-		"""
+class TickerCompilation:
 
-		for name in self.column_name_change:
-			if name in data.columns:
-				data = data.rename(columns = 
-					{name: self.column_name_change[name]})
-				#print("COLUMN CHANGED!")
-				#print(data.head())
+    """
+    Definition of objects
+    """
 
-		return(data)
+    def __init__(self):
+
+        self.URLS = [
+            "https://www.advfn.com/nyse/newyorkstockexchange.asp?companies=",
+            "https://www.advfn.com/nasdaq/nasdaq.asp?companies=",
+            "advfn.com/amex/americanstockexchange.asp?companies=A",
+        ]
+        self.EXCHANGES = ["NYSE", "NASDAQ", "AMEX"]
+        self.HEADERS = ["Security's Name", "Ticker", "Exchange"]
+
+        self.url = ""
+        self.exchange = ""
+
+        self.link = ""
+        self.name = []
+        self.ticker = []
+        self.exchange_list = []
+
+        self.data
+
+    """
+    Formats the URL to get the required webpage
+    """
+
+    def url_formatter(self, character):
+
+        self.link = self.url + character
+
+    """
+    Filters the data from the parsed text and stores it
+    """
+
+    def get_data(self, rows):
+
+        for row in rows:
+            data = row.find_all("td")
+            self.name.append(data[0].text.strip())
+            self.ticker.append(data[1].text.strip())
+            self.exchange_list.append(self.exchange)
+
+    """
+    Scrapes the data off the webpage
+    """
+
+    def web_scraper(self):
+
+        page = requests.get(self.link)
+        soup = BeautifulSoup(page.text, "html.parser")
+
+        odd_rows = soup.find_all("tr", attrs={"class": "ts0"})
+        even_rows = soup.find_all("tr", attrs={"class": "ts1"})
+
+        self.get_data(odd_rows)
+        self.get_data(even_rows)
+
+    """
+    Formats and structures the data
+    """
+
+    def data_format(self):
+
+        self.data = pd.DataFrame(columns=self.HEADERS)
+        self.data["Issuing Entity"] = self.name
+        self.data["Ticker"] = self.ticker
+        self.data["Exchange"] = self.exchange_list
+
+    """
+    Cleans the data by removing empty columns
+    """
+
+    def data_cleaning(self):
+
+        self.data = self.data[self.data["Issuing Entity"] != ""]
+
+    """
+    Stores the data on ROM in CSV format
+    """
+
+    def data_store(self):
+        self.data.to_csv("/data/tickers/tickers.csv")
+
+    """
+    Compiles the list of tickers and structures, formats
+    and stores the data
+    """
+
+    def compile(self):
+        for element in range(len(self.URLS)):
+            self.url = self.URLS[element]
+            self.exchange = self.EXCHANGES[element]
+
+            for character in string.ascii_uppercase:
+                self.url_formatter(character)
+                print(self.link)
+                self.web_scraper()
+
+        self.data_format()
+        self.data_cleaning()
+        self.data_store()
+
+        self.data.head()
 
 
-	def column_format(self, data):
-		"""
-		Format's the columns before adding to tickers.csv
-		"""
-
-		data = self.meaningless_column_removal(data)
-		data = self.column_rename(data)
-		return(data)
-
-
-	def data_input(self, data):
-		"""
-		Inputs the tickers' data into the file
-		"""
-
-		tickers_filename = "tickers.csv"
-
-		with open(tickers_filename, 'a') as file:
-			data.to_csv(file, header=file.tell()==0, 
-				index = False)
-
-
-	def duplicate_removal(self):
-		"""
-		Removes all duplicate rows and columns in the 
-		dataframe
-		"""
-
-		data = pd.read_csv("tickers.csv")
-		os.remove("tickers.csv")
-
-		isDuplicate = data.duplicated(subset=['Ticker'],
-			keep='first')
-		data['isDuplicate'] = isDuplicate
-		data = data[data.isDuplicate != True]
-		del data['isDuplicate']
-
-		self.data_input(data)
-
-
-	def compile(self):
-		"""
-		Takes in unstructured data, formats and stores it
-		in a structured format
-		"""
-
-		tickers_data = self.data_ingestion()
-		tickers_data = self.column_format(tickers_data)
-		self.data_input(tickers_data)
-		self.duplicate_removal()
+def main():
+    compilationObj = TickerCompilation()
+    compilationObj.compile()
 
 
 if __name__ == "__main__":
-	
-	files = ["ticker_list.csv","XASE_tickers.csv",
-	"XNYS_tickers.csv"]
-	drop_columns = ["Quandl_Code"]
-	names = {
-		"ticker" : "Ticker",
-		"issuer_name": "Security Name"
-	}
-
-	for file in files:
-		compiler = TickerCompiler(file, drop_columns, names)
-		compiler.compile()
+    main()
